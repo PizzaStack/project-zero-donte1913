@@ -41,20 +41,22 @@ Have your bank application connect to your SQL database using JDBC and store all
 You should use the DAO design pattern for data connectivity.
 */
 
-import java.io.*;
-import java.util.ArrayList;
-import java.util.NoSuchElementException;
+//import java.io.*;
+
+import java.sql.SQLException;
+//import java.util.ArrayList;
+//import java.util.NoSuchElementException;
 import java.util.Scanner;
 
 
 public class BankingApp {
 
     private static int userInput;
-    private static final int validRegisterUsername = 2000000; //Near max int value to return in checkUserName
     private static Scanner read;
-    private static ArrayList<Customer> customerList = new ArrayList<Customer>();
-    private static ArrayList<Customer> employeeList = new ArrayList<Customer>();
-    private static ArrayList<Customer> bankAdminList = new ArrayList<Customer>();
+    //private static ArrayList<Customer> customerList = new ArrayList<Customer>();
+    //private static ArrayList<Customer> employeeList = new ArrayList<Customer>();
+    //private static ArrayList<Customer> bankAdminList = new ArrayList<Customer>();
+    private static jdbConnector connector;
 
     /*
      * Purpose:
@@ -62,14 +64,20 @@ public class BankingApp {
      *
      * */
     public static void main(String[] args) {
-        System.out.println("Banking App!\n");
+        //System.out.println("Banking App!\n");
 
+        //Connect to AWS DB
+        connector = new jdbConnector();
         userInput = mainMenu();
 
         //User should have either logged in or registered at this line
-        //jdbConnector dbConn = new jdbConnector();
 
-
+        try {
+            connector.db.close();
+            read.close();
+        } catch (SQLException e) {
+            e.getMessage();
+        }
     }//end of main
 
 
@@ -124,16 +132,74 @@ public class BankingApp {
 
     /*
      * Purpose:
+     *   Display the register menu options when registering users in application for the first time
+     *
+     *   @return int
+     */
+    private static void registerMenu(Scanner read) {
+        Customer cu = null;
+        String firstName = "";
+        String lastName = "";
+        String username = "";
+        String password = "";
+
+        try {
+            System.out.printf("Please enter your first name: ");
+            if (read.hasNextLine()) {
+                firstName = read.nextLine();
+                System.out.println(firstName);
+            }
+
+            System.out.printf("Please enter your last name: ");
+            if (read.hasNextLine()) {
+                lastName = read.nextLine();
+                System.out.println(lastName);
+            }
+
+            //Checks if the username the user enters is already in the customer array list
+            //here if so catch exception
+            do {
+                System.out.printf("Please enter your username: ");
+
+                if (read.hasNextLine())
+                    username = read.nextLine();
+            } while (connector.checkUsername(connector.db, read, username) == 0);
+
+            System.out.printf("Please enter your password: ");
+            if (read.hasNextLine()) {
+                password = read.nextLine();
+                System.out.println(password);
+            }
+
+            cu = new Customer(firstName, lastName, username, password);
+
+
+            //add the customer to the Customers table
+            if (connector.insertCustomer(cu, connector.db))
+                System.out.printf("Thank you " + "%s" + ", you're registered" +
+                        " and may now login with your username and password!\n", cu.getFirstName());
+            else {
+                System.out.println("There was an issue inserting you into the DB, returning to main menu.");
+                mainMenu();
+            }
+            loginMenu(read);
+        } catch (Exception e) {
+            System.out.println("Something went wrong with registering you.");
+            System.exit(-1);
+        }
+
+    }//end of registerMenu
+
+
+    /*
+     * Purpose:
      *  Display the login menu options for returning users
      *
      *
      * @return void
      * */
     private static void loginMenu(Scanner read) {
-        int customerIndex = -2;
         String username = "";
-        String password = "";
-        String typedPassword = "";
         //Customer c1 = new Customer("", "", "", "");  //??
 
         System.out.println("Which type of user would you like to log in as?\n" +
@@ -148,68 +214,32 @@ public class BankingApp {
                 switch (userInput) {
                     case 1:
                         /*
-                         *  TODO: Search for customer password in the customerList
+                         * Searches for the customer username in the Customers table
                          *   if password not typed correctly by 3 tries, system will exit
-                         *   if customer not found, user needs to register a new customer account
-                         *
                          */
-                        System.out.println("Press 1 to go back or please enter your username: ");
-                        //while (checkUserName(username) < 0) {
-                        if (read.hasNextLine()) {
-                            username = read.nextLine();//Get username
-                            if (username.equals("1"))
-                                mainMenu();
-                            //If the customer object at the index is not null get the password of that customer
-                            // and compare that to what the user types in
-                        }
-                        System.out.printf("%d\t%s\t%s\t%s\t%s%n", customerList.get(0).getUserID(),
-                                customerList.get(0).getFirstName(),
-                                customerList.get(0).getLastName(),
-                                customerList.get(0).getUserName(),
-                                customerList.get(0).getPassword());
+                        do {
+                            System.out.println("Press 1 to go back or please enter your username: ");
+                            if (read.hasNextLine()) {
+                                username = read.nextLine();//Get username
+                                if (username.equals("1"))
+                                    mainMenu();
+                            }
+                        } while (connector.checkUsername(connector.db, read, username) == -1);
 
-                        System.out.println(username);
-                        customerIndex = checkUserName(username);
-                        System.out.println(customerIndex);
-                                /*
-                                if (customerList.get(customerIndex) != null) {
-                                    password = customerList.get(customerIndex).getPassword();//Get password
-                                    break;
-                                }*/
-
-
-                        // }
-/*
-                        System.out.println("Hello " + customerList.get(customerIndex).getUserName());
-                        for (int j = 3; j < 0; j++) {
-                            System.out.println("Please enter your password, " + Integer.toString(j) + "attempt(s)" +
-                                    " " +
-                                    "until app exits!");
-                                if (read.hasNextLine()) {
-                                    typedPassword = read.nextLine();
-                                    if (typedPassword == password) {
-                                        System.out.println(password);
-                                        System.out.println("Welcome to BankingApp " + customerList.get(customerIndex)
-                                        .getFirstName() + "!");
-                                        break;
-                                    }
-                                }
-                        }*/
-
-                        //Customer has almost logged in successfully..
-                        //customerMenu();
+                        //Customer has logged in successfully!
+                        customerMenu(read, username);
                         break;
                     case 2:
                         //TODO: Search for employee username in the employee file
                         //System.out.printf("Please enter your employee username: ");
-                        //checkEmployeeFile();
+
                         System.out.println("No employees at this time");
                         System.exit(0);
                         break;
                     case 3:
                         //TODO: Search for bank administrator username in the bank administrator file
                         //System.out.printf("Please enter your bank administrator username: ");
-                        //checkBankAdminFile();
+
                         System.out.println("No bank admins at this time");
                         System.exit(0);
                         break;
@@ -237,103 +267,182 @@ public class BankingApp {
 
     }//end of loginMenu
 
+
     /*
      * Purpose:
-     *   Display the register menu options when registering users in application for the first time
+     *  Display the customer menu options for customers that have registered already with the app
      *
-     *   @return int
-     */
-    private static int registerMenu(Scanner read) {
-        Customer cu = null;
-        String firstName = "";
-        String lastName = "";
-        String username = "";
-        String password = "";
+     * @return void
+     * */
+    private static void customerMenu(Scanner read, String username) {
+        //ja = joint account
+        String jaFirstName = "";
+        String jaLastName = "";
+        String jaUsername = "";
+        String jaPassword = "";
 
+        System.out.printf("Please enter the number to perform the matching action:\n" +
+                "1. Apply for a new account\n" +
+                "2. View Account Applications\n" +
+                "3. View/Edit Open Accounts\n" +
+                "4. Logout\n");
         try {
-            System.out.printf("Please enter your first name: ");
-            if (read.hasNextLine()) {
-                firstName = read.nextLine();
-                System.out.println(firstName);
+
+            if (read.hasNextInt() && read.hasNextLine()) {
+                userInput = Integer.parseInt(read.nextLine());
+                //Customer menu option selection
+                switch (userInput) {
+                    case 1:
+                        System.out.println("Joint account policy:\nCustomers may only apply for one joint" +
+                                " checking account with one other customer.");
+                        System.out.println("Which type of account would you like to apply for?\n"
+                                + "1. Checking\n" +
+                                "2. Savings");
+
+                        if (read.hasNextInt() && read.hasNextLine()) {
+                            userInput = Integer.parseInt(read.nextLine());
+                            //Checking or Savings account type option selection
+                            switch (userInput) {
+                                case 1:
+                                    System.out.println("Will this account be joint with another customer?\n"
+                                            + "1. Yes\n2. No");
+
+                                    if (read.hasNextInt() && read.hasNextLine()) {
+                                        userInput = Integer.parseInt(read.nextLine());
+
+                                        switch (userInput) {
+                                            //Customer has selected to apply for joint checking account
+                                            case 1:
+                                                System.out.printf("Please enter the joint account customer's first " +
+                                                        "name: ");
+                                                if (read.hasNextLine()) {
+                                                    jaFirstName = read.nextLine();
+                                                    System.out.println(jaFirstName);
+                                                }
+
+                                                System.out.printf("Please enter the joint account customer's last " +
+                                                        "name: ");
+                                                if (read.hasNextLine()) {
+                                                    jaLastName = read.nextLine();
+                                                    System.out.println(jaLastName);
+                                                }
+
+                                                System.out.printf("Please enter the joint account customer's user " +
+                                                        "name: ");
+                                                if (read.hasNextLine()) {
+                                                    jaUsername = read.nextLine();
+                                                    System.out.println(jaUsername);
+                                                }
+
+                                                System.out.printf("Please enter the joint account customer's " +
+                                                        "password: ");
+                                                if (read.hasNextLine()) {
+                                                    jaPassword = read.nextLine();
+                                                    System.out.println(jaPassword);
+                                                }
+                                                //Checks for joint account customer
+                                                if (connector.checkForJointAccountCustomer(connector.db, jaFirstName,
+                                                        jaLastName,
+                                                        jaUsername, jaPassword)) {
+                                                    System.out.println("Sending joint checking account application " +
+                                                            "with " + jaUsername + " for approval. " +
+                                                            "You may now monitor the approval status in the \"View " +
+                                                            "Account Applications\" menu.");
+
+                                                    Account account = new Account(0.0, username, true,
+                                                            Account.AccountType.CHECKING, jaUsername);
+
+                                                    connector.insertJointAccount(connector.db, account);
+                                                } else
+                                                    System.out.println("Could not find customer for joint account" +
+                                                            " application, returning to customer menu.");
+
+                                                customerMenu(read, username);
+
+                                            //Individual checking account application option selection
+                                            case 2:
+                                                System.out.println("Sending individual checking account application for approval." +
+                                                        " You may now monitor the approval status in the \"View " +
+                                                        "Account Applications\" menu.");
+                                                Account account = new Account(0.0, username, false,
+                                                        Account.AccountType.CHECKING,"");
+
+                                                connector.insertIndividualAccount(connector.db, account);
+                                                customerMenu(read, username);
+                                            default:
+                                                System.out.println(userInput +" is not a valid entry, going back to " +
+                                                        "customer menu..");
+                                                customerMenu(read, username);
+                                        }
+                                    }
+
+                                //Individual savings account application option selection
+                                case 2:
+                                    System.out.println("Sending individual savings account application for approval." +
+                                            " You may now monitor the approval status in the \"View " +
+                                            "Account Applications\" menu.");
+                                    Account account = new Account(0.0, username, false,
+                                            Account.AccountType.SAVINGS,"");
+
+                                    connector.insertIndividualAccount(connector.db, account);
+                                    customerMenu(read, username);
+                                default:
+                                    System.out.println(userInput +" is not a valid entry, going back to " +
+                                            "customer menu..");
+                                    customerMenu(read, username);
+                            }
+                        }
+                    case 2:
+                        //View Account Applications
+                        //TODO view app. menu for customers
+                        connector.viewAccountApplications(connector.db, username);
+                        break;
+                    case 3:
+                        //View/Edit Open Accounts
+                        //TODO view edit open accouts  menu for customers
+                        //  also implement withdraw, deposit, and transfering funds in this menu
+                        connector.viewEditOpenAccounts(connector.db, username);
+                        System.exit(0);
+                    case 4:
+                        System.out.println("Goodbye");
+                        System.exit(0);
+                    default:
+                        System.out.println(userInput + " is not a valid entry, please try again.");
+                        customerMenu(read, username);
+                }
             }
-
-            System.out.printf("Please enter your last name: ");
-            if (read.hasNextLine()) {
-                lastName = read.nextLine();
-                System.out.println(lastName);
-            }
-
-            //Checks if the username the user enters is already in the customer array list
-            //here if so catch exception
-            do {
-                System.out.printf("Please enter your username: ");
-
-                if (read.hasNextLine())
-                    username = read.nextLine();
-            } while (checkUserName(username) == 0);
-
-            System.out.printf("Please enter your password: ");
-            if (read.hasNextLine()) {
-                password = read.nextLine();
-                System.out.println(password);
-            }
-
-            cu = new Customer(firstName, lastName, username, password);
-
-            customerList.add(cu);
-
-            System.out.printf("Thank you " + "%s" + " you're registered" +
-                    " and may now login with your username and password!\n", customerList.get(0).getFirstName());
-            for (int i = 0; i < customerList.size(); i++) {
-                System.out.printf("%d\t%s\t%s\t%s\t%s%n", customerList.get(i).getUserID(),
-                        customerList.get(i).getFirstName(),
-                        customerList.get(i).getLastName(),
-                        customerList.get(i).getUserName(),
-                        customerList.get(i).getPassword());
-            }
+        } catch (NumberFormatException e) {
+            System.out.println("No spaces are needed.\n\nOptions:\n" +
+                    "Press 1 to apply for a new account, then press enter.\n" +
+                    "Press 2 to view your current account applications, then press enter.\n" +
+                    "Press 3 to view and edit your open accounts, then press enter.\n" +
+                    "Press 4 to logout, then press enter.\n");
             loginMenu(read);
         } catch (Exception e) {
-            System.out.println("Something went wrong with registering you.");
-            System.exit(-1);
+            System.err.println("ERROR: Something went really wrong!");
+            e.printStackTrace();
         }
-        return 0;
 
 
-    }//end of registerMenu
+    }//End of customerMenu
 
 
-    /*
-     *Purpose:
-     *  Checks the customer array list for the username given, if the username
-     *   given is found and customer is registering then returns 0, if not found then return a number close to max int.
-     *   If the customer is logging in and the username given is found return the customer object to reference the
-     *   password with the username, if not found return -1.
-     *
-     *   @return int
-     */
-    public static int checkUserName(String username) {
-        for (int i = 0; i < customerList.size(); i++) {
-            //Customer is registering and the username entered is found in the customerList, use another username
-            if (customerList.get(i).getUserName() == username) {
-                if (userInput == 2) {
-                    System.out.println("User name already taken, please try again!");
-                    return 0;
-                }
-                //Customer is logging in and we have found the username in the customerList, return the index to get
-                //the customer object password associated with the username
-                else
-                    return i;
-            }
-        }
-        //Customer is registering and the username was not found in the customerList
-        if (userInput == 2)
-            return validRegisterUsername;
-            //Customer is logging in and the username was not found in the customerList
-        else {
-            System.out.println("The username you have entered is incorrect, please try again");
-            return -1;
-        }
-    }//End of checkUserName
+
+
+    public static void employeeMenu(Scanner read, String username){
+
+    }//End of employee menu
+
+
+
+    public static void bankAdminMenu(Scanner read, String username){
+
+    }//End of bank admin menu
+
+
+
+
+
 
 
 }//EoC
