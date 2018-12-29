@@ -6,17 +6,11 @@ public class Account {
     private String username; //foreign key references Customer.username column
     private String jaUsername; //joint account customer username sharing the possible joint account
     private boolean jointAccount;
+    public enum AccountType {CHECKING, SAVINGS}
 
-    public enum AccountType {
-        CHECKING, SAVINGS
-    }
 
     AccountType type;
-
-    public enum Status {
-        DENIED, PENDING, APPROVED
-    }
-
+    public enum Status {DENIED, PENDING, APPROVED}
     Status st;
 
     //Insert into the account table with all six fields with their correct table field types rather than just the four
@@ -31,20 +25,6 @@ public class Account {
         this.st = Status.PENDING;
         this.accountID = count;
     }
-
-    //Method to withdraw
-    public int withdrawal() {
-        return 0;
-    }
-
-    public int deposit() {
-        return 0;
-    }
-
-    public int transferFunds() {
-        return 0;
-    }
-
 
     public int getCount() {
         return count;
@@ -88,6 +68,19 @@ public class Account {
 
     public void setAccountID(int accountID) {
         this.accountID = accountID;
+    }
+
+
+    public AccountType getType() {
+        return type;
+    }
+
+    public Status getSt() {
+        return st;
+    }
+
+    public void setType(AccountType type) {
+        this.type = type;
     }
 
 }//End of class

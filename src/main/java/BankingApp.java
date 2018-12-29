@@ -122,7 +122,7 @@ public class BankingApp {
                     "to the banking app or 2 to register as new customer, then press enter, or 3 to exit\n");
             mainMenu();
         } catch (Exception e) {
-            System.err.println("ERROR: Something went really wrong!");
+            System.err.println("ERROR: Something went really wrong in mainMenu!");
             e.printStackTrace();
         }
         return userInput;
@@ -173,15 +173,12 @@ public class BankingApp {
 
             cu = new Customer(firstName, lastName, username, password);
 
-
+            connector.insertCustomer(cu, connector.db);
             //add the customer to the Customers table
-            if (connector.insertCustomer(cu, connector.db))
-                System.out.printf("Thank you " + "%s" + ", you're registered" +
-                        " and may now login with your username and password!\n", cu.getFirstName());
-            else {
-                System.out.println("There was an issue inserting you into the DB, returning to main menu.");
-                mainMenu();
-            }
+
+            System.out.printf("Thank you " + "%s" + ", you're registered" +
+                    " and may now login with your username and password!\n", cu.getFirstName());
+
             loginMenu(read);
         } catch (Exception e) {
             System.out.println("Something went wrong with registering you.");
@@ -200,7 +197,7 @@ public class BankingApp {
      * */
     private static void loginMenu(Scanner read) {
         String username = "";
-        //Customer c1 = new Customer("", "", "", "");  //??
+        String pwd = "";
 
         System.out.println("Which type of user would you like to log in as?\n" +
                 "1. Customer\n" +
@@ -230,18 +227,48 @@ public class BankingApp {
                         customerMenu(read, username);
                         break;
                     case 2:
-                        //TODO: Search for employee username in the employee file
-                        //System.out.printf("Please enter your employee username: ");
-
-                        System.out.println("No employees at this time");
-                        System.exit(0);
+                        //TODO: Search for employee username in the employee table in DB
+                        System.out.printf("Please enter your employee username: ");
+                        if (read.hasNextLine()) {
+                            username = read.nextLine();//Get username
+                            if (username.equals("employee")) {
+                                System.out.printf("Please enter your password: ");
+                                if (read.hasNextLine()) {
+                                    pwd = read.nextLine();
+                                    if (pwd.equals("test"))
+                                        employeeMenu(read, username);
+                                    else {
+                                        System.out.println("Invalid password, returning to login menu");
+                                        loginMenu(read);
+                                    }
+                                }
+                            } else {
+                                System.out.println("Invalid username, returning to login menu");
+                                loginMenu(read);
+                            }
+                        }
                         break;
                     case 3:
-                        //TODO: Search for bank administrator username in the bank administrator file
-                        //System.out.printf("Please enter your bank administrator username: ");
-
-                        System.out.println("No bank admins at this time");
-                        System.exit(0);
+                        //TODO: Search for bank administrator username in the bank administrator table
+                        System.out.printf("Please enter your bank administrator username: ");
+                        if (read.hasNextLine()) {
+                            username = read.nextLine();//Get username
+                            if (username.equals("admin")) {
+                                System.out.printf("Please enter your password: ");
+                                if (read.hasNextLine()) {
+                                    pwd = read.nextLine();
+                                    if (pwd.equals("test"))
+                                        bankAdminMenu(read, username);
+                                    else {
+                                        System.out.println("Invalid password, returning to login menu");
+                                        loginMenu(read);
+                                    }
+                                }
+                            } else {
+                                System.out.println("Invalid username, returning to login menu");
+                                loginMenu(read);
+                            }
+                        }
                         break;
                     case 4:
                         System.out.println("Goodbye");
@@ -261,7 +288,7 @@ public class BankingApp {
                     "Press 4 to exit, then press enter.\n");
             loginMenu(read);
         } catch (Exception e) {
-            System.err.println("ERROR: Something went really wrong!");
+            System.err.println("ERROR: Something went really wrong in loginMenu!");
             e.printStackTrace();
         }
 
@@ -359,67 +386,74 @@ public class BankingApp {
 
                                                 customerMenu(read, username);
 
-                                            //Individual checking account application option selection
+                                                //Individual checking account application option selection
                                             case 2:
                                                 System.out.println("Sending individual checking account application for approval." +
                                                         " You may now monitor the approval status in the \"View " +
                                                         "Account Applications\" menu.");
                                                 Account account = new Account(0.0, username, false,
-                                                        Account.AccountType.CHECKING,"");
+                                                        Account.AccountType.CHECKING, "");
 
                                                 connector.insertIndividualAccount(connector.db, account);
                                                 customerMenu(read, username);
                                             default:
-                                                System.out.println(userInput +" is not a valid entry, going back to " +
+                                                System.out.println(userInput + " is not a valid entry, going back to " +
                                                         "customer menu..");
                                                 customerMenu(read, username);
                                         }
                                     }
 
-                                //Individual savings account application option selection
+                                    //Individual savings account application option selection
                                 case 2:
                                     System.out.println("Sending individual savings account application for approval." +
                                             " You may now monitor the approval status in the \"View " +
                                             "Account Applications\" menu.");
                                     Account account = new Account(0.0, username, false,
-                                            Account.AccountType.SAVINGS,"");
+                                            Account.AccountType.SAVINGS, "");
 
                                     connector.insertIndividualAccount(connector.db, account);
                                     customerMenu(read, username);
                                 default:
-                                    System.out.println(userInput +" is not a valid entry, going back to " +
+                                    System.out.println(userInput + " is not a valid entry, going back to " +
                                             "customer menu..");
                                     customerMenu(read, username);
                             }
                         }
                     case 2:
                         //View Account Applications
-                        //TODO view app. menu for customers
                         connector.viewAccountApplications(connector.db, username);
-                        break;
+                        System.out.print("\n\nYour current account applications are listed above\nEnter 1 to go back to the customer menu: ");
+                        while (read.hasNext()) {
+                            if (read.hasNextInt() && read.hasNextLine()) {
+                                if (read.nextInt() == 1) {
+                                    customerMenu(read, username);
+                                    break;
+                                }
+                            } else
+                                System.out.println("Invalid entry...");
+                        }
                     case 3:
-                        //View/Edit Open Accounts
-                        //TODO view edit open accouts  menu for customers
-                        //  also implement withdraw, deposit, and transfering funds in this menu
-                        connector.viewEditOpenAccounts(connector.db, username);
-                        System.exit(0);
+                        //View/Edit Open Accounts menu for customers
+                        //implements withdraw, deposit, and transferring funds in this menu
+                        connector.viewEditOpenAccounts(connector.db, read, username);
+                        customerMenu(read, username);
                     case 4:
-                        System.out.println("Goodbye");
-                        System.exit(0);
+                        mainMenu();
                     default:
                         System.out.println(userInput + " is not a valid entry, please try again.");
                         customerMenu(read, username);
                 }
             }
         } catch (NumberFormatException e) {
-            System.out.println("No spaces are needed.\n\nOptions:\n" +
+            System.out.println("No spaces are needed, options are:\n" +
                     "Press 1 to apply for a new account, then press enter.\n" +
                     "Press 2 to view your current account applications, then press enter.\n" +
                     "Press 3 to view and edit your open accounts, then press enter.\n" +
                     "Press 4 to logout, then press enter.\n");
-            loginMenu(read);
+
+            customerMenu(read, username);
         } catch (Exception e) {
-            System.err.println("ERROR: Something went really wrong!");
+            System.err.println("ERROR: Something went really wrong in customerMenu!");
             e.printStackTrace();
         }
 
@@ -427,22 +461,97 @@ public class BankingApp {
     }//End of customerMenu
 
 
+    //Display the options for the employee
+    public static void employeeMenu(Scanner read, String username) {
+        System.out.println("Hello, " + username);
+        System.out.println("Please type the number for the action, then click enter.\n" +
+                "1. View Customer Information\n" +
+                "2. Approve/Deny Account Applications\n" +
+                "3. Logout");
+        try {
+            //Check if user enters a number then presses enter
+            if (read.hasNextInt() && read.hasNextLine()) {
+                userInput = Integer.parseInt(read.nextLine());
+                switch (userInput) {
+                    case 1:
+                        connector.viewCustomerInformation();
+                        employeeMenu(read, username);
+                    case 2:
+                        connector.approveDenyOpenApplications(read);
+                        employeeMenu(read, username);
+                    case 3:
+                        mainMenu();
+                    default:
+                        System.out.println(userInput + " is not a valid entry, please try again.");
+                        employeeMenu(read, username);
+                }
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("No spaces are needed.\n\nOptions:\n" +
+                    "Press 1 to view customer information, then press enter.\n" +
+                    "Press 2 to approve or deny account applications, then press enter.\n" +
+                    "Press 3 to logout, then press enter.\n");
+            employeeMenu(read, username);
+        } catch (Exception e) {
+            System.err.println("ERROR: Something went really wrong in employeeMenu!");
+            e.printStackTrace();
+        }
 
 
-    public static void employeeMenu(Scanner read, String username){
+    }//End of employeeMenu
 
-    }//End of employee menu
-
-
-
-    public static void bankAdminMenu(Scanner read, String username){
+    //Display the options for the bank admin
+    public static void bankAdminMenu(Scanner read, String username) {
+        System.out.println("Hello, " + username);
+        System.out.println("Please type the number for the action, then click enter.\n" +
+                "1. View Customer Information\n" +
+                "2. Approve/Deny Account Applications\n" +
+                "3. View/Edit Open Accounts\n" +
+                "4. Cancel Open Accounts\n" +
+                "5. Logout");
+        try {
+            //Check if user enters a number then presses enter
+            if (read.hasNextInt() && read.hasNextLine()) {
+                userInput = Integer.parseInt(read.nextLine());
+                switch (userInput) {
+                    case 1:
+                        connector.viewCustomerInformation();
+                        bankAdminMenu(read, username);
+                    case 2:
+                        connector.approveDenyOpenApplications(read);
+                        bankAdminMenu(read, username);
+                    case 3:
+                        connector.viewEditOpenAccounts(connector.db, read, username);
+                        bankAdminMenu(read, username);
+                    case 4:
+                        connector.cancelOpenAccounts(read, connector.db);
+                        bankAdminMenu(read, username);
+                    case 5:
+                        mainMenu();
+                    default:
+                        System.out.println(userInput + " is not a valid entry, please try again.");
+                        bankAdminMenu(read, username);
+                }
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("No spaces are needed.\n\nOptions:\n" +
+                    "Press 1 to view customer information, then press enter.\n" +
+                    "Press 2 to approve or deny account applications, then press enter.\n" +
+                    "Press 3 to view and edit open customer accounts, then press enter.\n" +
+                    "Press 4 to cancel open customer accounts, then press enter.\n" +
+                    "Press 5 to logout, then press enter.");
+            bankAdminMenu(read, username);
+        } catch (Exception e) {
+            System.err.println("ERROR: Something went really wrong in bankAdminMenu!");
+            e.printStackTrace();
+        }
 
     }//End of bank admin menu
 
 
-
-
-
+    public static int getUserInput() {
+        return userInput;
+    }
 
 
 }//EoC
