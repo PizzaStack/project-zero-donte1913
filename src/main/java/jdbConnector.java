@@ -334,7 +334,7 @@ public class jdbConnector {
                                 if (resultSet.next()) {
                                     currentBal = resultSet.getFloat(2);
                                     if (amt > 0 && amt <= currentBal) {
-                                        System.out.printf("Are you sure you want to withdraw $%f from account %d?\n" +
+                                        System.out.printf("Are you sure you want to withdraw $%.2f from account %d?\n" +
                                                 "1. Yes\n2. No\n", amt, accountID);
                                         if (read.hasNextInt() && read.hasNextLine()) {
                                             int opt = read.nextInt();
@@ -371,7 +371,7 @@ public class jdbConnector {
                                 if (resultSet.next()) {
                                     currentBal = resultSet.getFloat(2);
                                     if (amt > 0) {
-                                        System.out.printf("Are you sure you want to deposit $%f to account %d?\n" +
+                                        System.out.printf("Are you sure you want to deposit $%.2f to account %d?\n" +
                                                 "1. Yes\n2. No\n", amt, accountID);
                                         if (read.hasNextInt() && read.hasNextLine()) {
                                             int opt = Integer.parseInt(read.nextLine());
@@ -418,8 +418,8 @@ public class jdbConnector {
 
                                         while (resultSet.next()) {
                                             if (resultSet.getInt(1) == transferAcc) {
-                                                System.out.printf("Are you sure you want to transfer funds from account " +
-                                                        acct.getAccountID() + " to account " + transferAcc + "?\n1. Yes\n2. No\n");
+                                                System.out.printf("Are you sure you want to transfer $%.2f from account " +
+                                                        acct.getAccountID() + " to account " + transferAcc + "?\n1. Yes\n2. No\n", amt);
                                                 if (read.hasNextInt() && read.hasNextLine()) {
                                                     int opt = Integer.parseInt(read.nextLine());
                                                     switch (opt) {
@@ -450,7 +450,7 @@ public class jdbConnector {
                                                             transferAccount.setAccountBalance(currentBal + amt);
                                                             BankingApp.log.info(username + " transferred $" + amt + " from account" + accountID + " to account " + transferAcc);
                                                             if (updateAccount(db, acct, transferAccount, 3))
-                                                                System.out.println("Transfer successful!");
+                                                                System.out.println("Transfer complete");
 
                                                             else
                                                                 System.out.println("Could not transfer funds at this time.");
@@ -731,12 +731,19 @@ public class jdbConnector {
 
         try {
             while (resultSet.next()) {
-                if (!resultSet.getString(7).equals("false")) {
+                if (!resultSet.getString(7).equals("false") && !resultSet.getString(5).equals("Denied")) {
                     System.out.printf("%s\t\t\t %s\t\t\t  %s\t\t  %s\t\t %s\t %s\t\t  %s%n", resultSet.getInt(1),
                             resultSet.getFloat(2),
                             resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)
                             , resultSet.getString(6), resultSet.getString(7));
-                } else {
+                }
+                else if(resultSet.getString(7).equals("false") && resultSet.getString(5).equals("Denied") && resultSet.getString(4).equals("Savings")){
+                    System.out.printf("%s\t\t\t %s\t\t\t  %s\t\t  %s\t\t %s\t\t %s\t\t  %s%n", resultSet.getInt(1),
+                            resultSet.getFloat(2),
+                            resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)
+                            , "N/A", resultSet.getString(7));
+
+                }else {
                     System.out.printf("%s\t\t\t %s\t\t\t  %s\t\t  %s\t\t %s\t %s\t\t  %s%n", resultSet.getInt(1),
                             resultSet.getFloat(2),
                             resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)
