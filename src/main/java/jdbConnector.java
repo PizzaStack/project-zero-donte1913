@@ -1,9 +1,15 @@
+import com.sun.javafx.binding.Logging;
+
 import java.sql.*;
-import java.util.HashMap;
+
+import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
+
 import java.util.Scanner;
 
 //Class used to connect, read, update, and delete data to and from the ElephantSQL database.
 public class jdbConnector {
+
     String url;
     String username;
     String password;
@@ -43,6 +49,7 @@ public class jdbConnector {
         String typedPassword = "";
         String password = "";
 
+
         try {
             Statement st = db.createStatement();
             boolean isResultSet = st.execute("SELECT * FROM public.customers ORDER BY firstname");
@@ -74,6 +81,7 @@ public class jdbConnector {
                                 }
                             }
                             System.out.println("Maximum password attempts exceeded, exiting app!");
+                            BankingApp.log.info("User login attempt failed for " + username);
                             System.exit(0);
                         }
                     }
@@ -100,17 +108,20 @@ public class jdbConnector {
     }//End of checkUsername
 
 
+    //Utilizes one the stored procedures (insertcustomer) for the customer table in the BankingApp DB
     //Inserts the given customer into the db and returns true if successful, false if otherwise.
     public void insertCustomer(Customer cu, Connection db) {
         try {
-            Statement st = db.createStatement();
-            st.execute("INSERT INTO public.customers VALUES ('" + cu.getFirstName() + "'," +
-                    "'" + cu.getLastName() + "','" + cu.getUserName() + "','" + cu.getPassword() + "')");
+            PreparedStatement pst = db.prepareStatement("SELECT insertcustomer(?, ?, ?, ?);");
+            pst.setString(1, cu.getFirstName());
+            pst.setString(2, cu.getLastName());
+            pst.setString(3, cu.getUserName());
+            pst.setString(4, cu.getPassword());
+            pst.executeUpdate();
 
-            st.close();
+            pst.close();
         } catch (java.sql.SQLException e) {
             e.getMessage();
-
         }
     }//End of insertCustomer
 
@@ -145,29 +156,19 @@ public class jdbConnector {
 
     //View all account applications for the user logged in the app
     public void viewAccountApplications(Connection db, String username) {
-        int i = 0;
         try {
             Statement st = db.createStatement();
             ResultSet resultSet = st.executeQuery("SELECT accountid, accountbalance, username," +
                     " accounttype, status, username2, \"jointAccount\"\n" +
-                    "\tFROM public.testaccounts\n" +
-                    "WHERE username = '" + username + "' AND status = 'Account Application Pending' OR\n" +
-                    "username2 = '" + username + "' AND status = 'Account Application Pending' OR\n" +
-                    "username = '" + username + "' AND status = 'Account Application Denied' OR\n" +
-                    "username2 = '" + username + "' AND status = 'Account Application Denied' OR\n" +
-                    "username = '" + username + "' AND status = 'Account Application Approved' OR\n" +
-                    "username2 = '" + username + "' AND status = 'Account Application Approved';");
-            System.out.printf("\nAccount ID\t| Account Balance\t| UserName\t| Account Type\t| Status\t| Username (2)\t| Is Joint Account?%n%n");
+                    "\tFROM public.accounts\n" +
+                    "WHERE username = '" + username + "' AND status = 'Pending' OR\n" +
+                    "username2 = '" + username + "' AND status = 'Pending' OR\n" +
+                    "username = '" + username + "' AND status = 'Denied' OR\n" +
+                    "username2 = '" + username + "' AND status = 'Denied' OR\n" +
+                    "username = '" + username + "' AND status = 'Approved' OR\n" +
+                    "username2 = '" + username + "' AND status = 'Approved';");
 
-            while (resultSet.next()) {
-                System.out.printf("%s\t\t\t%s\t\t\t\t\t%s\t\t %s\t %s\t%s\t%s%n", resultSet.getInt(1),
-                        resultSet.getFloat(2),
-                        resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)
-                        , resultSet.getString(6), resultSet.getString(7));
-                i++;
-            }
-
-            if (i == 0)
+            if (displayAccounts(resultSet) == 0)
                 System.out.println("\tNo account applications to show at this time");
 
             resultSet.close();
@@ -194,10 +195,10 @@ public class jdbConnector {
 
         try {
             Statement st = db.createStatement();
-            boolean isResultSet = st.execute("INSERT INTO public.testaccounts(\n" +
+            boolean isResultSet = st.execute("INSERT INTO public.accounts(\n" +
                     "\taccountid, accountbalance, username, accounttype, status, username2, \"jointAccount\")\n" +
                     "\tVALUES (" + account.getAccountID() + ", " + account.getAccountBalance() + ", '" + account.getUsername() + "'," +
-                    "'" + strType + "', 'Account Application Pending', '', 'false');");
+                    "'" + strType + "', 'Pending', '', 'false');");
             if (isResultSet) {
                 System.out.println(st.getUpdateCount() + " rows affected");
                 st.close();
@@ -218,10 +219,10 @@ public class jdbConnector {
     public boolean insertJointAccount(Connection db, Account account) {
         try {
             Statement st = db.createStatement();
-            boolean isResultSet = st.execute("INSERT INTO public.testaccounts(\n" +
+            boolean isResultSet = st.execute("INSERT INTO public.accounts(\n" +
                     "\taccountid, accountbalance, username, accounttype, status, username2, \"jointAccount\")\n" +
                     "\tVALUES (" + account.getAccountID() + ", " + account.getAccountBalance() + ", '" + account.getUsername() + "'," +
-                    "'Checking', 'Account Application Pending', '" + account.getJaUsername() + "', 'true');");
+                    "'Checking', 'Pending', '" + account.getJaUsername() + "', 'true');");
             if (isResultSet) {
                 System.out.println(st.getUpdateCount() + " rows affected");
                 st.close();
@@ -241,7 +242,6 @@ public class jdbConnector {
         to withdraw, deposit, and transfer funds between accounts
     */
     public void viewEditOpenAccounts(Connection db, Scanner read, String username) {
-        int i = 0;
         int accountID = -1;
         int transferAcc = -1;
         int action = 0;
@@ -253,20 +253,11 @@ public class jdbConnector {
             Statement st = db.createStatement();
             ResultSet resultSet = st.executeQuery("SELECT accountid, accountbalance, username," +
                     " accounttype, status, username2, \"jointAccount\"\n" +
-                    "\tFROM public.testaccounts" +
-                    "\tWHERE username = '" + username + "' AND status = 'Account Application Approved' OR " +
-                    "username2 = '" + username + "' AND status = 'Account Application Approved';");
-            System.out.printf("\nAccount ID\t| Account Balance\t| UserName\t| Account Type\t| Status\t| Username (2)\t| Is Joint Account?%n%n");
+                    "\tFROM public.accounts" +
+                    "\tWHERE username = '" + username + "' AND status = 'Approved' OR " +
+                    "username2 = '" + username + "' AND status = 'Approved';");
 
-            while (resultSet.next()) {
-                i++;
-                System.out.printf("%s\t\t\t%s\t\t\t\t\t%s\t\t %s\t %s\t%s\t%s%n", resultSet.getInt(1),
-                        resultSet.getFloat(2),
-                        resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)
-                        , resultSet.getString(6), resultSet.getString(7));
-
-            }
-            if (i == 0) {
+            if (displayAccounts(resultSet) == 0) {
                 System.out.println("\tNo open accounts to edit at this time.");
                 return;
             }
@@ -274,16 +265,13 @@ public class jdbConnector {
             FLAG1:
             while (flag) {
                 System.out.printf("Please enter the account ID you would like to edit or \"<\" to go back to customer menu: ");
-                if (!read.hasNextInt() && read.hasNextLine()) {
-                    if (read.nextLine().equals("<"))
-                        return;
-                } else if (read.hasNextInt() && read.hasNextLine()) {
+                if (read.hasNextInt() && read.hasNextLine()) {
                     accountID = Integer.parseInt(read.nextLine());
                     resultSet = st.executeQuery("SELECT accountid, accountbalance, username," +
                             " accounttype, status, username2, \"jointAccount\"\n" +
-                            "\tFROM public.testaccounts" +
-                            "\tWHERE username = '" + username + "' AND status = 'Account Application Approved' OR " +
-                            "username2 = '" + username + "' AND status = 'Account Application Approved';");
+                            "\tFROM public.accounts" +
+                            "\tWHERE accountid = " + accountID + " AND username = '" + username + "' AND status = 'Approved' OR " +
+                            "accountid = " + accountID + "AND username2 = '" + username + "' AND status = 'Approved';");
 
 
                     while (resultSet.next()) {
@@ -295,20 +283,26 @@ public class jdbConnector {
                         }
                     }
 
+                } else if (!read.hasNextInt() && read.hasNextLine()) {
+                    if (read.nextLine().equals("<"))
+                        return;
                 } else {
                     System.out.println("Invalid entry, please try again.");
                     continue FLAG1;
                 }
             }//FLAG1
 
-            resultSet = st.executeQuery("SELECT * FROM public.testaccounts WHERE accountid = " + accountID + ";");
+            resultSet = st.executeQuery("SELECT * FROM public.accounts WHERE accountid = " + accountID + ";");
 
             Account acct = new Account(0.0, username, false, Account.AccountType.CHECKING, "");
             Account transferAccount = new Account(0.0, username, false, Account.AccountType.CHECKING, "");
 
             while (resultSet.next()) {
                 if (resultSet.getInt(1) == accountID) {
+
                     acct.setAccountID(resultSet.getInt(1));
+                    acct.setAccountBalance(resultSet.getFloat(2));
+
                     if (resultSet.getString(7).equals("true"))
                         acct.setJointAccount(true);
 
@@ -321,10 +315,9 @@ public class jdbConnector {
             }
 
 
-
             FLAG2:
             while (flag) {
-                resultSet = st.executeQuery("SELECT * FROM public.testaccounts WHERE accountid = " + accountID + ";");
+                resultSet = st.executeQuery("SELECT * FROM public.accounts WHERE accountid = " + accountID + ";");
                 //Implements withdraw, deposit, and transfer
                 System.out.println("Please enter number to perform matching" +
                         " \"edit account option\" for account " + accountID);
@@ -340,7 +333,7 @@ public class jdbConnector {
                                 amt = Double.parseDouble(read.nextLine());
                                 if (resultSet.next()) {
                                     currentBal = resultSet.getFloat(2);
-                                    if (amt > 0 && amt < currentBal) {
+                                    if (amt > 0 && amt <= currentBal) {
                                         System.out.printf("Are you sure you want to withdraw $%f from account %d?\n" +
                                                 "1. Yes\n2. No\n", amt, accountID);
                                         if (read.hasNextInt() && read.hasNextLine()) {
@@ -348,13 +341,14 @@ public class jdbConnector {
                                             switch (opt) {
                                                 case 1:
                                                     acct.setAccountBalance(currentBal - amt);
-                                                    if (updateAccount(db, acct, transferAccount, 1)) {
+                                                    BankingApp.log.info(username + " withdrawed $" + amt + " from account " + accountID);
+                                                    if (updateAccount(db, acct, transferAccount, 1))
                                                         System.out.println("Withdrawal successful!");
-                                                        viewEditOpenAccounts(db, read, username);
-                                                    } else {
+
+                                                    else
                                                         System.out.println("Could not withdraw funds at this time.");
-                                                        viewEditOpenAccounts(db, read, username);
-                                                    }
+
+                                                    break;
                                                 case 2:
                                                     continue FLAG2;
                                                 default:
@@ -364,6 +358,7 @@ public class jdbConnector {
                                         }
                                     } else {
                                         System.out.println("Invalid withdraw amount, please try again.");
+                                        BankingApp.log.info("Withdraw attempt failed for user " + username + " for account " + accountID);
                                         continue FLAG2;
                                     }
                                 }
@@ -383,13 +378,13 @@ public class jdbConnector {
                                             switch (opt) {
                                                 case 1:
                                                     acct.setAccountBalance(currentBal + amt);
-                                                    if (updateAccount(db, acct, transferAccount, 2)) {
+                                                    BankingApp.log.info(username + " deposited $" + amt + " to account " + accountID);
+                                                    if (updateAccount(db, acct, transferAccount, 2))
                                                         System.out.println("Deposit successful!");
-                                                        viewEditOpenAccounts(db, read, username);
-                                                    } else {
+                                                    else
                                                         System.out.println("Could not deposit funds at this time.");
-                                                        viewEditOpenAccounts(db, read, username);
-                                                    }
+
+                                                    break;
                                                 case 2:
                                                     continue FLAG2;
                                                 default:
@@ -399,6 +394,7 @@ public class jdbConnector {
                                         }
                                     } else {
                                         System.out.println("Invalid deposit amount, please try again.");
+                                        BankingApp.log.info("Deposit attempt failed for user " + username + " for account " + accountID);
                                         continue FLAG2;
                                     }
                                 }
@@ -410,27 +406,33 @@ public class jdbConnector {
                                 amt = Double.parseDouble(read.nextLine());
                                 if (resultSet.next()) {
                                     currentBal = resultSet.getFloat(2);
-                                    if (amt > 0 && amt < currentBal) {
+                                    if (amt > 0 && amt <= currentBal) {
 
                                         System.out.print("Please enter the account ID you would like to transfer the funds to: ");
                                         if (read.hasNextInt() && read.hasNextLine()) {
                                             transferAcc = Integer.parseInt(read.nextLine());
                                         }
 
-                                        resultSet = st.executeQuery("SELECT * FROM public.testaccounts WHERE " +
+                                        resultSet = st.executeQuery("SELECT * FROM public.accounts WHERE " +
                                                 "accountid = " + transferAcc + ";");
+
                                         while (resultSet.next()) {
                                             if (resultSet.getInt(1) == transferAcc) {
                                                 System.out.printf("Are you sure you want to transfer funds from account " +
                                                         acct.getAccountID() + " to account " + transferAcc + "?\n1. Yes\n2. No\n");
                                                 if (read.hasNextInt() && read.hasNextLine()) {
-                                                    int opt = read.nextInt();
+                                                    int opt = Integer.parseInt(read.nextLine());
                                                     switch (opt) {
                                                         case 1:
+                                                            resultSet = st.executeQuery("SELECT * FROM public.accounts WHERE " +
+                                                                    "accountid = " + transferAcc + ";");
 
                                                             while (resultSet.next()) {
+                                                                transferAccount.setAccountBalance(resultSet.getFloat(2));
+
                                                                 if (resultSet.getInt(1) == transferAcc)
                                                                     transferAccount.setAccountID(resultSet.getInt(1));
+
 
                                                                 else if (resultSet.getString(7).equals("true"))
                                                                     transferAccount.setJointAccount(true);
@@ -446,13 +448,15 @@ public class jdbConnector {
                                                             acct.setAccountBalance(currentBal - amt);
                                                             currentBal = transferAccount.getAccountBalance();
                                                             transferAccount.setAccountBalance(currentBal + amt);
-                                                            if (updateAccount(db, acct, transferAccount, 3)) {
+                                                            BankingApp.log.info(username + " transferred $" + amt + " from account" + accountID + " to account " + transferAcc);
+                                                            if (updateAccount(db, acct, transferAccount, 3))
                                                                 System.out.println("Transfer successful!");
-                                                                viewEditOpenAccounts(db, read, username);
-                                                            } else {
+
+                                                            else
                                                                 System.out.println("Could not transfer funds at this time.");
-                                                                viewEditOpenAccounts(db, read, username);
-                                                            }
+
+
+                                                            break;
                                                         case 2:
                                                             continue FLAG2;
                                                         default:
@@ -462,6 +466,10 @@ public class jdbConnector {
                                                 }
                                             }
                                         }
+                                    } else {
+                                        System.out.println("Invalid transfer amount, please try again.");
+                                        BankingApp.log.info("Transfer attempt failed for user " + username + " for account " + accountID);
+                                        continue FLAG2;
                                     }
                                 }
                             }
@@ -470,7 +478,10 @@ public class jdbConnector {
                             return;
                         default:
                             System.out.println("Invalid account edit entry, please try again.");
+                            break;
                     }
+
+                    viewEditOpenAccounts(db, read, username);
                 }
             }//FLAG2
 
@@ -498,32 +509,32 @@ public class jdbConnector {
         true by default
     */
     public boolean updateAccount(Connection db, Account account, Account transferAccount, int action) {
-        boolean isResultSet = true;
+
         Statement st = null;
         try {
             switch (action) {
 
                 case 1://(1) WITHDRAW
                     st = db.createStatement();
-                    st.execute("UPDATE public.testaccounts" +
+                    st.execute("UPDATE public.accounts" +
                             " SET accountbalance = " + account.getAccountBalance() +
                             " WHERE accountid = " + account.getAccountID() + ";");
 
                     break;
                 case 2://(2) DEPOSIT
                     st = db.createStatement();
-                    isResultSet = st.execute("UPDATE public.testaccounts" +
+                    st.execute("UPDATE public.accounts" +
                             " SET accountbalance = " + account.getAccountBalance() +
                             " WHERE accountid = " + account.getAccountID() + ";");
 
                     break;
                 case 3://(3) TRANSFER
                     st = db.createStatement();
-                    st.execute("UPDATE public.testaccounts" +
+                    st.execute("UPDATE public.accounts" +
                             " SET accountbalance = " + account.getAccountBalance() +
                             " WHERE accountid = " + account.getAccountID() + ";");
 
-                    st.execute("UPDATE public.testaccounts" +
+                    st.execute("UPDATE public.accounts" +
                             " SET accountbalance = " + transferAccount.getAccountBalance() +
                             " WHERE accountid = " + transferAccount.getAccountID() + ";");
 
@@ -533,10 +544,11 @@ public class jdbConnector {
 
         } catch (SQLException e) {
             e.getMessage();
+            return false;
         }
 
 
-        return true; //Returns true by default
+        return true;
 
     }//End of updateAccount
 
@@ -546,21 +558,29 @@ public class jdbConnector {
         int i = 0;
         try {
             Statement st = db.createStatement();
-            ResultSet resultSet = st.executeQuery("SELECT public.testcustomer.fn, public.testcustomer.ln, public.testaccounts.accountid," +
-                    " public.testaccounts.accountbalance, public.testaccounts.username, public.testaccounts.accounttype, public.testaccounts.status\n" +
-                    "FROM public.testaccounts\n" +
-                    "INNER JOIN public.testcustomer ON public.testcustomer.usrn = public.testaccounts.username");
+            ResultSet resultSet = st.executeQuery("SELECT public.customers.firstname, public.customers.lastname, public.accounts.accountid,\n" +
+                    "public.accounts.accountbalance, public.accounts.username, public.accounts.accounttype, public.accounts.status\n" +
+                    "FROM public.accounts\n" +
+                    "INNER JOIN public.customers ON public.customers.username = public.accounts.username");
 
 
-            System.out.printf("\nFirst Name\t| Last Name\t| Account ID\t| Account Balance\t| UserName\t| Account Type\t| Status%n%n");
+            System.out.printf("\nFirst Name | Last Name | Account ID | Account Balance | UserName | Account Type | Status%n%n");
 
             while (resultSet.next()) {
-                System.out.printf("%s\t\t\t%s\t\t\t%s\t\t\t\t%s\t\t\t\t  %s\t  %s\t  %s%n", resultSet.getString(1),
-                        resultSet.getString(2),
-                        resultSet.getInt(3), resultSet.getDouble(4), resultSet.getString(5)
-                        , resultSet.getString(6), resultSet.getString(7));
+                if(resultSet.getString(6).equals("Checking")) {
+                    System.out.printf("%s\t\t %s\t\t %s\t\t\t %s\t\t\t\t%s\t\t%s\t  %s%n", resultSet.getString(1),
+                            resultSet.getString(2),
+                            resultSet.getInt(3), resultSet.getDouble(4), resultSet.getString(5)
+                            , resultSet.getString(6), resultSet.getString(7));
+                }else{
+                    System.out.printf("%s\t\t %s\t\t %s\t\t\t %s\t\t\t\t%s\t\t%s\t\t  %s%n", resultSet.getString(1),
+                            resultSet.getString(2),
+                            resultSet.getInt(3), resultSet.getDouble(4), resultSet.getString(5)
+                            , resultSet.getString(6), resultSet.getString(7));
+                }
                 i++;
             }
+            System.out.println();
 
             if (i == 0)
                 System.out.println("\tNo customer accounts to view at this time");
@@ -578,27 +598,14 @@ public class jdbConnector {
      * @return boolean
      */
     public void approveDenyOpenApplications(Scanner read) {
-        int i = 0;
         int action = -1;
         int tranAccID = -1;
-        boolean isResultSet = true;
 
         try {
             Statement st = db.createStatement();
-            ResultSet resultSet = st.executeQuery("SELECT * FROM public.testaccounts WHERE status = 'Account Application Pending';");
+            ResultSet resultSet = st.executeQuery("SELECT * FROM public.accounts WHERE status = 'Pending';");
 
-            System.out.printf("\nAccount ID\t| Account Balance\t| UserName\t| Account Type\t| Status\t| Username (2)\t| Is Joint Account?%n%n");
-
-            while (resultSet.next()) {
-                i++;
-                System.out.printf("%s\t\t\t%s\t\t\t\t\t%s\t\t %s\t  %s\t%s\t%s%n", resultSet.getInt(1),
-                        resultSet.getFloat(2),
-                        resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)
-                        , resultSet.getString(6), resultSet.getString(7));
-
-            }
-
-            if (i == 0) {
+            if (displayAccounts(resultSet) == 0) {
                 System.out.println("\tNo pending account applications to view at this time");
                 return;
             } else {
@@ -616,10 +623,10 @@ public class jdbConnector {
                         continue TRUE;
                     }
 
-                    resultSet = st.executeQuery("SELECT * FROM public.testaccounts WHERE " +
-                            "accountid = " + tranAccID + " AND status = 'Account Application Pending';");
+                    resultSet = st.executeQuery("SELECT * FROM public.accounts WHERE " +
+                            "accountid = " + tranAccID + " AND status = 'Pending';");
                     while (resultSet.next()) {
-                        if (resultSet.getInt(1) == tranAccID && resultSet.getString(5).equals("Account Application Pending"))
+                        if (resultSet.getInt(1) == tranAccID && resultSet.getString(5).equals("Pending"))
                             break TRUE;
                         else {
                             System.out.println("Invalid account entry, please try again");
@@ -636,18 +643,23 @@ public class jdbConnector {
                 action = Integer.parseInt(read.nextLine());
                 switch (action) {
                     case 1:
-                        st.executeQuery("UPDATE public.testaccounts" +
-                                " SET status = 'Account Application Approved'" +
+                        BankingApp.log.info("Approved account application " + tranAccID);
+                        st.executeQuery("UPDATE public.accounts" +
+                                " SET status = 'Approved'" +
                                 " WHERE accountid = " + tranAccID + ";");
+                        break;
                     case 2:
-                        st.executeQuery("UPDATE public.testaccounts" +
-                                " SET status = 'Account Application Denied'" +
+                        BankingApp.log.info("Denied account application " + tranAccID);
+                        st.executeQuery("UPDATE public.accounts" +
+                                " SET status = 'Denied'" +
                                 " WHERE accountid = " + tranAccID + ";");
+                        break;
                     case 3:
                         return;
                     default:
                         System.out.println(action + " is not a valid entry, please try again.");
                         approveDenyOpenApplications(read);
+                        break;
                 }
             }
             resultSet.close();
@@ -662,24 +674,13 @@ public class jdbConnector {
 
 
     //Implements cancelling of open customer accounts for bank admins
-    public void cancelOpenAccounts(Scanner read, Connection db) {
-        int i = 0;
+    public void cancelOpenAccounts(Connection db, Scanner read) {
         int acctID = -1;
         try {
             Statement st = db.createStatement();
-            ResultSet resultSet = st.executeQuery("SELECT * FROM public.testaccounts;");
+            ResultSet resultSet = st.executeQuery("SELECT * FROM public.accounts;");
 
-            System.out.printf("\nAccount ID\t| Account Balance\t| UserName\t| Account Type\t| Status\t| Username (2)\t| Is Joint Account?%n%n");
-
-            while (resultSet.next()) {
-                i++;
-                System.out.printf("%s\t\t\t%s\t\t\t\t\t%s\t\t  %s\t  %s\t%s\t%s%n", resultSet.getInt(1),
-                        resultSet.getFloat(2),
-                        resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)
-                        , resultSet.getString(6), resultSet.getString(7));
-
-            }
-            if (i == 0) {
+            if (displayAccounts(resultSet) == 0) {
                 System.out.println("\tNo customer accounts to show at this time");
                 return;
             }
@@ -698,12 +699,12 @@ public class jdbConnector {
                     System.out.println("Invalid account entry, please try again");
                     continue;
                 }
-                resultSet = st.executeQuery("SELECT * FROM public.testaccounts WHERE " +
+                resultSet = st.executeQuery("SELECT * FROM public.accounts WHERE " +
                         "accountid = " + acctID + ";");
                 while (resultSet.next()) {
                     if (resultSet.getInt(1) == acctID) {
-                        st.execute("DELETE FROM public.testaccounts WHERE accountid = " + acctID);
-
+                        st.execute("DELETE FROM public.accounts WHERE accountid = " + acctID);
+                        BankingApp.log.info("Bank admin deleted open account " + acctID);
 
                     } else {
                         System.out.println("Invalid account entry, please try again");
@@ -720,6 +721,35 @@ public class jdbConnector {
         }
 
     }//End of cancelOpenAccounts
+
+
+    //Displays the accounts in the accounts table based on the resultSet object given
+    //@return i - counter for number of accounts in accounts table
+    public int displayAccounts(ResultSet resultSet) {
+        int i = 0;
+        System.out.printf("\nAccount ID | Account Balance | UserName | Account Type |  Status  | Username (2) | Is Joint Account?%n%n");
+
+        try {
+            while (resultSet.next()) {
+                if (!resultSet.getString(7).equals("false")) {
+                    System.out.printf("%s\t\t\t %s\t\t\t  %s\t\t  %s\t\t %s\t %s\t\t  %s%n", resultSet.getInt(1),
+                            resultSet.getFloat(2),
+                            resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)
+                            , resultSet.getString(6), resultSet.getString(7));
+                } else {
+                    System.out.printf("%s\t\t\t %s\t\t\t  %s\t\t  %s\t\t %s\t %s\t\t  %s%n", resultSet.getInt(1),
+                            resultSet.getFloat(2),
+                            resultSet.getString(3), resultSet.getString(4), resultSet.getString(5)
+                            , "N/A", resultSet.getString(7));
+                }
+
+                i++;
+            }
+        } catch (SQLException e) {
+            e.getMessage();
+        }
+        return i;
+    }//End of displayAccounts
 
 
 }//EoC

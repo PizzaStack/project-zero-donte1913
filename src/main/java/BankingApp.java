@@ -43,9 +43,12 @@ You should use the DAO design pattern for data connectivity.
 
 //import java.io.*;
 
+import java.io.File;
 import java.sql.SQLException;
-//import java.util.ArrayList;
-//import java.util.NoSuchElementException;
+
+import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
+
 import java.util.Scanner;
 
 
@@ -53,24 +56,21 @@ public class BankingApp {
 
     private static int userInput;
     private static Scanner read;
-    //private static ArrayList<Customer> customerList = new ArrayList<Customer>();
-    //private static ArrayList<Customer> employeeList = new ArrayList<Customer>();
-    //private static ArrayList<Customer> bankAdminList = new ArrayList<Customer>();
     private static jdbConnector connector;
+    static final Logger log = Logger.getLogger(BankingApp.class);
 
     /*
      * Purpose:
      *   Start the applications main menu screen and overall execute
-     *
+     *   Tell the JVM where the log4j.properties file is located
      * */
     public static void main(String[] args) {
-        //System.out.println("Banking App!\n");
+        PropertyConfigurator.configure(System.getProperty("user.dir") + File.separator +
+                "\\src\\main\\resources\\log4j.properties");
 
         //Connect to AWS DB
         connector = new jdbConnector();
-        userInput = mainMenu();
-
-        //User should have either logged in or registered at this line
+        mainMenu();
 
         try {
             connector.db.close();
@@ -86,9 +86,9 @@ public class BankingApp {
      *   Display main menu options when first logging in application to login as a return user
      *   or to register as a new customer
      *
-     * @return int
+     * @return void
      */
-    private static int mainMenu() {
+    private static void mainMenu() {
         System.out.printf("Type the number for the action, then click enter.\n" +
                 "1. Login\n" +
                 "2. Register new account\n" +
@@ -108,25 +108,27 @@ public class BankingApp {
                         break;
                     case 3:
                         System.out.println("Goodbye");
+                        log.info("Application exit");
                         System.exit(0);
                     default:
                         System.out.println(userInput + " is not a valid entry, please try again.");
-                        mainMenu();
+                        break;
                 }
             } else {
                 System.out.println(read.nextLine() + " is not a number, please try again.");
-                mainMenu();
             }
+
+            mainMenu();
         } catch (NumberFormatException e) {
             System.out.println("No spaces are needed, type either 1 to login " +
                     "to the banking app or 2 to register as new customer, then press enter, or 3 to exit\n");
-            mainMenu();
+
         } catch (Exception e) {
             System.err.println("ERROR: Something went really wrong in mainMenu!");
             e.printStackTrace();
         }
-        return userInput;
 
+        mainMenu();
     }//end of mainMenu
 
 
@@ -179,6 +181,8 @@ public class BankingApp {
             System.out.printf("Thank you " + "%s" + ", you're registered" +
                     " and may now login with your username and password!\n", cu.getFirstName());
 
+            log.info("New username registration: " + cu.getFirstName());
+
             loginMenu(read);
         } catch (Exception e) {
             System.out.println("Something went wrong with registering you.");
@@ -224,6 +228,7 @@ public class BankingApp {
                         } while (connector.checkUsername(connector.db, read, username) == -1);
 
                         //Customer has logged in successfully!
+                        log.info("Successful login attempt by user: " + username);
                         customerMenu(read, username);
                         break;
                     case 2:
@@ -235,9 +240,10 @@ public class BankingApp {
                                 System.out.printf("Please enter your password: ");
                                 if (read.hasNextLine()) {
                                     pwd = read.nextLine();
-                                    if (pwd.equals("test"))
+                                    if (pwd.equals("test")) {
+                                        log.info("Successful login attempt by employee");
                                         employeeMenu(read, username);
-                                    else {
+                                    } else {
                                         System.out.println("Invalid password, returning to login menu");
                                         loginMenu(read);
                                     }
@@ -257,9 +263,10 @@ public class BankingApp {
                                 System.out.printf("Please enter your password: ");
                                 if (read.hasNextLine()) {
                                     pwd = read.nextLine();
-                                    if (pwd.equals("test"))
+                                    if (pwd.equals("test")) {
+                                        log.info("Successful login attempt by bank admin");
                                         bankAdminMenu(read, username);
-                                    else {
+                                    } else {
                                         System.out.println("Invalid password, returning to login menu");
                                         loginMenu(read);
                                     }
@@ -272,13 +279,14 @@ public class BankingApp {
                         break;
                     case 4:
                         System.out.println("Goodbye");
+                        log.info("Application exit");
                         System.exit(0);
 
                     default:
                         System.out.println(userInput + " is not a valid entry, please try again.");
-                        loginMenu(read);
+                        break;
                 }
-
+                loginMenu(read);
             }
         } catch (NumberFormatException e) {
             System.out.println("No spaces are needed.\n\nOptions:\n" +
@@ -301,7 +309,7 @@ public class BankingApp {
      *
      * @return void
      * */
-    private static void customerMenu(Scanner read, String username) {
+    protected static void customerMenu(Scanner read, String username) {
         //ja = joint account
         String jaFirstName = "";
         String jaLastName = "";
@@ -380,13 +388,13 @@ public class BankingApp {
                                                             Account.AccountType.CHECKING, jaUsername);
 
                                                     connector.insertJointAccount(connector.db, account);
+                                                    log.info("Joint checking account application request sent from user " + username + " with " + jaUsername);
                                                 } else
                                                     System.out.println("Could not find customer for joint account" +
                                                             " application, returning to customer menu.");
 
-                                                customerMenu(read, username);
-
-                                                //Individual checking account application option selection
+                                                break;
+                                            //Individual checking account application option selection
                                             case 2:
                                                 System.out.println("Sending individual checking account application for approval." +
                                                         " You may now monitor the approval status in the \"View " +
@@ -395,12 +403,15 @@ public class BankingApp {
                                                         Account.AccountType.CHECKING, "");
 
                                                 connector.insertIndividualAccount(connector.db, account);
-                                                customerMenu(read, username);
+                                                log.info("Individual checking account application request sent from user " + username);
+
+                                                break;
                                             default:
                                                 System.out.println(userInput + " is not a valid entry, going back to " +
                                                         "customer menu..");
-                                                customerMenu(read, username);
+                                                break;
                                         }
+                                        customerMenu(read, username);
                                     }
 
                                     //Individual savings account application option selection
@@ -412,37 +423,36 @@ public class BankingApp {
                                             Account.AccountType.SAVINGS, "");
 
                                     connector.insertIndividualAccount(connector.db, account);
-                                    customerMenu(read, username);
+                                    log.info("Individual savings account application request sent from user " + username);
+                                    break;
                                 default:
                                     System.out.println(userInput + " is not a valid entry, going back to " +
                                             "customer menu..");
-                                    customerMenu(read, username);
+                                    break;
                             }
+                            customerMenu(read, username);
                         }
                     case 2:
                         //View Account Applications
                         connector.viewAccountApplications(connector.db, username);
-                        System.out.print("\n\nYour current account applications are listed above\nEnter 1 to go back to the customer menu: ");
-                        while (read.hasNext()) {
-                            if (read.hasNextInt() && read.hasNextLine()) {
-                                if (read.nextInt() == 1) {
-                                    customerMenu(read, username);
-                                    break;
-                                }
-                            } else
-                                System.out.println("Invalid entry...");
-                        }
+                        System.out.print("\nYour current account applications are listed above \n\n");
+                        log.info(username + " viewed their account application(s)");
+                        break;
                     case 3:
                         //View/Edit Open Accounts menu for customers
                         //implements withdraw, deposit, and transferring funds in this menu
                         connector.viewEditOpenAccounts(connector.db, read, username);
-                        customerMenu(read, username);
+                        log.info(username + " attempted to edit their open account(s)");
+                        break;
                     case 4:
+                        log.info("User " + username + " logged out");
                         mainMenu();
+                        break;
                     default:
                         System.out.println(userInput + " is not a valid entry, please try again.");
-                        customerMenu(read, username);
+                        break;
                 }
+                customerMenu(read, username);
             }
         } catch (NumberFormatException e) {
             System.out.println("No spaces are needed, options are:\n" +
@@ -451,13 +461,12 @@ public class BankingApp {
                     "Press 3 to view and edit your open accounts, then press enter.\n" +
                     "Press 4 to logout, then press enter.\n");
 
-            customerMenu(read, username);
         } catch (Exception e) {
             System.err.println("ERROR: Something went really wrong in customerMenu!");
             e.printStackTrace();
         }
 
-
+        customerMenu(read, username);
     }//End of customerMenu
 
 
@@ -475,28 +484,33 @@ public class BankingApp {
                 switch (userInput) {
                     case 1:
                         connector.viewCustomerInformation();
-                        employeeMenu(read, username);
+                        log.info("Employee viewed their customers information");
+                        break;
                     case 2:
                         connector.approveDenyOpenApplications(read);
-                        employeeMenu(read, username);
+                        log.info("Employee attempted to approve/deny customer account application(s)");
+                        break;
                     case 3:
+                        log.info("Employee logged out");
                         mainMenu();
+                        break;
                     default:
                         System.out.println(userInput + " is not a valid entry, please try again.");
-                        employeeMenu(read, username);
+                        break;
                 }
+                employeeMenu(read, username);
             }
         } catch (NumberFormatException e) {
             System.out.println("No spaces are needed.\n\nOptions:\n" +
                     "Press 1 to view customer information, then press enter.\n" +
                     "Press 2 to approve or deny account applications, then press enter.\n" +
                     "Press 3 to logout, then press enter.\n");
-            employeeMenu(read, username);
+
         } catch (Exception e) {
             System.err.println("ERROR: Something went really wrong in employeeMenu!");
             e.printStackTrace();
         }
-
+        employeeMenu(read, username);
 
     }//End of employeeMenu
 
@@ -516,22 +530,29 @@ public class BankingApp {
                 switch (userInput) {
                     case 1:
                         connector.viewCustomerInformation();
-                        bankAdminMenu(read, username);
+                        log.info("Bank admin viewed customers information");
+                        break;
                     case 2:
                         connector.approveDenyOpenApplications(read);
-                        bankAdminMenu(read, username);
+                        log.info("Bank admin attempted to approve/deny customer account application(s)");
+                        break;
                     case 3:
                         connector.viewEditOpenAccounts(connector.db, read, username);
-                        bankAdminMenu(read, username);
+                        log.info("Bank admin attempted to edit customers open account(s)");
+                        break;
                     case 4:
-                        connector.cancelOpenAccounts(read, connector.db);
-                        bankAdminMenu(read, username);
+                        connector.cancelOpenAccounts(connector.db, read);
+                        log.info("Bank admin attempted to cancel customer account(s) ");
+                        break;
                     case 5:
+                        log.info("Bank admin logged out");
                         mainMenu();
+                        break;
                     default:
                         System.out.println(userInput + " is not a valid entry, please try again.");
-                        bankAdminMenu(read, username);
+                        break;
                 }
+                bankAdminMenu(read, username);
             }
         } catch (NumberFormatException e) {
             System.out.println("No spaces are needed.\n\nOptions:\n" +
@@ -540,17 +561,22 @@ public class BankingApp {
                     "Press 3 to view and edit open customer accounts, then press enter.\n" +
                     "Press 4 to cancel open customer accounts, then press enter.\n" +
                     "Press 5 to logout, then press enter.");
-            bankAdminMenu(read, username);
+
         } catch (Exception e) {
             System.err.println("ERROR: Something went really wrong in bankAdminMenu!");
             e.printStackTrace();
         }
 
+        bankAdminMenu(read, username);
     }//End of bank admin menu
 
 
     public static int getUserInput() {
         return userInput;
+    }
+
+    public static void setUserInput(int userInput) {
+        BankingApp.userInput = userInput;
     }
 
 
