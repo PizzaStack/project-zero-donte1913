@@ -112,15 +112,16 @@ public class jdbConnector {
     //Inserts the given customer into the db and returns true if successful, false if otherwise.
     public void insertCustomer(Customer cu, Connection db) {
         try {
-            PreparedStatement pst = db.prepareStatement("SELECT insertcustomer(?, ?, ?, ?);");
-            pst.setString(1, cu.getFirstName());
-            pst.setString(2, cu.getLastName());
-            pst.setString(3, cu.getUserName());
-            pst.setString(4, cu.getPassword());
-            pst.executeUpdate();
+            CallableStatement cst = db.prepareCall("{CALL insertcustomer(?, ?, ?, ?)}");
+            cst.setString(1, cu.getFirstName());
+            cst.setString(2, cu.getLastName());
+            cst.setString(3, cu.getUserName());
+            cst.setString(4, cu.getPassword());
+            cst.execute();
 
-            pst.close();
+            cst.close();
         } catch (java.sql.SQLException e) {
+            e.printStackTrace();
             e.getMessage();
         }
     }//End of insertCustomer
