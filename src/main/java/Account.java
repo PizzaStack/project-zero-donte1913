@@ -1,4 +1,4 @@
-public class Account {
+public class Account{
 
     private static int count;
     private double accountBalance;

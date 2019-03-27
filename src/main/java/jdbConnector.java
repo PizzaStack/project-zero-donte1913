@@ -75,7 +75,7 @@ public class jdbConnector {
                                         System.out.println("\nWelcome to BankingApp " + resultSet.getString(1) + "!");
                                         return 0;
                                     } else {
-                                        System.out.println("Incorrect password " + i +
+                                        System.out.println("Incorrect password " + (i - 1) +
                                                 " more attempt(s) until app exits!");
                                     }
                                 }
